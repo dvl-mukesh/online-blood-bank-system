@@ -318,7 +318,7 @@ func GetJwt(w http.ResponseWriter, r *http.Request) {
 }
 
 func setTokenInHeader(w http.ResponseWriter, token string) {
-	w.Header().Add("tokenid", token)
+	w.Header().Add("Tokenid", token)
 }
 
 var SECRET = []byte("super-secret-auth-key")
@@ -331,7 +331,6 @@ type JWTClaim struct {
 
 func CreateJWT(usedId string, password string) (string, error) {
 	expirationTime := time.Now().Add(1 * time.Hour)
-	token := jwt.New(jwt.SigningMethodHS256)
 
 	claims := &JWTClaim{
 		UserId:   usedId,
@@ -341,7 +340,7 @@ func CreateJWT(usedId string, password string) (string, error) {
 		},
 	}
 
-	token = jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenStr, err := token.SignedString(SECRET)
 
 	if err != nil {
@@ -355,7 +354,7 @@ func CreateJWT(usedId string, password string) (string, error) {
 func ValidateJWT(next func(w http.ResponseWriter, r *http.Request)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
-		if r.Header["Token"] != nil {
+		if r.Header["Tokenid"] != nil {
 			token, err := jwt.ParseWithClaims(r.Header["Token"][0], &JWTClaim{}, func(t *jwt.Token) (interface{}, error) {
 				_, ok := t.Method.(*jwt.SigningMethodHMAC)
 				if !ok {
