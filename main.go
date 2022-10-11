@@ -281,7 +281,7 @@ func main() {
 	http.HandleFunc("/blood-request-patient-details", bloodRequestPatient)
 	http.HandleFunc("/blood-provided-patient-details-id/", bloodProvidedPatient)
 	http.HandleFunc("/search-filter-blood-details/", searchFilterBloodDetails)
-	http.HandleFunc("/jwt", GetJwt)
+	http.HandleFunc("/generate-token", GetJwt)
 	http.Handle("/api", ValidateJWT(saveDonor))
 	log.Println("Server started at 8080")
 	http.ListenAndServe(":8080", nil)
@@ -306,15 +306,17 @@ func GetJwt(w http.ResponseWriter, r *http.Request) {
 
 	err := ser.AuthenticateUser(password, userId)
 
-	if err == nil {
-
-		token, err := CreateJWT(userId, password)
-		if err != nil {
-			return
-		}
-		setTokenInHeader(w, token)
-		respondWithJson(w, http.StatusAccepted, "User authenticated successfully", true, nil)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, err.Error())
+		return
 	}
+
+	token, err := CreateJWT(userId)
+	if err != nil {
+		return
+	}
+	setTokenInHeader(w, token)
+	respondWithJson(w, http.StatusAccepted, "User authenticated successfully", true, map[string]string{"Tokenid": token})
 }
 
 func setTokenInHeader(w http.ResponseWriter, token string) {
@@ -324,17 +326,15 @@ func setTokenInHeader(w http.ResponseWriter, token string) {
 var SECRET = []byte("super-secret-auth-key")
 
 type JWTClaim struct {
-	Password string `json:"username"`
-	UserId   string `json:"usedId"`
+	UserId string `json:"usedId"`
 	jwt.StandardClaims
 }
 
-func CreateJWT(usedId string, password string) (string, error) {
+func CreateJWT(usedId string) (string, error) {
 	expirationTime := time.Now().Add(1 * time.Hour)
 
 	claims := &JWTClaim{
-		UserId:   usedId,
-		Password: password,
+		UserId: usedId,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expirationTime.Unix(),
 		},

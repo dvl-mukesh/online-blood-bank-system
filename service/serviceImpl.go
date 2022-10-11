@@ -58,14 +58,24 @@ func (e *Connection) Connect() {
 	CollectionPatient = client.Database(e.Database).Collection(e.Collection4)
 }
 func (e *Connection) AuthenticateUser(password, UserId string) error {
-	var err error
-	if (UserId != "") && (password != "") {
-		_, err = CollectionUser.Find(ctx, bson.D{primitive.E{Key: "user.user_id", Value: UserId}, primitive.E{Key: "user.password", Value: password}})
+	if (UserId == "") && (password == "") {
+		return errors.New("username and password can't be empty")
 	}
+	dataCur, err := CollectionUser.Find(ctx, bson.D{primitive.E{Key: "user_id", Value: UserId}, primitive.E{Key: "password", Value: password}})
+
 	if err != nil {
 		log.Println(err)
 		return err
 	}
+
+	var results []model.User
+
+	dataCur.All(ctx, &results)
+
+	if len(results) == 0 {
+		return errors.New("invalid credentials")
+	}
+
 	return nil
 }
 
