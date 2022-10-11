@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strconv"
-	"strings"
+	"os"
 	"time"
 
+	"github.com/unidoc/unipdf/v3/common/license"
+	"github.com/unidoc/unipdf/v3/creator"
+	pdfModel "github.com/unidoc/unipdf/v3/model"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -24,6 +26,8 @@ type Connection struct {
 	Collection3 string
 	Collection4 string
 }
+
+const dir = "data/download/"
 
 var CollectionUser *mongo.Collection
 var CollectionDonor *mongo.Collection
@@ -42,6 +46,12 @@ func (e *Connection) Connect() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	err = license.SetMeteredKey("db722e5d9fa7cb0335b8fd3302096d8c835e8d8f10f4d3d7f6e2b09fb85229e1")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	CollectionUser = client.Database(e.Database).Collection(e.Collection1)
 	CollectionDonor = client.Database(e.Database).Collection(e.Collection2)
 	CollectionAvailableBlood = client.Database(e.Database).Collection(e.Collection3)
@@ -59,15 +69,20 @@ func (e *Connection) AuthenticateUser(password, UserId string) error {
 	return nil
 }
 
-func (e *Connection) SaveUserDetails(reqBody model.User) (string, error) {
+func (e *Connection) SaveUserDetails(reqBody model.User) (model.User, error) {
 
 	data, err := CollectionUser.InsertOne(ctx, reqBody)
 	if err != nil {
 		log.Println(err)
-		return "", errors.New("Unable to store data")
+		return reqBody, errors.New("unable to store data")
+	}
+	if oid, ok := data.InsertedID.(primitive.ObjectID); ok {
+
+		reqBody.Id = oid
+
 	}
 	fmt.Println(data)
-	return "User Saved Successfully", nil
+	return reqBody, nil
 }
 
 func (e *Connection) SearchUsersDetailsById(idStr string) ([]*model.User, error) {
@@ -117,7 +132,7 @@ func (e *Connection) UpdateUserDetailsById(reqData model.User, idStr string) (bs
 	}
 	fmt.Println(updatedDocument)
 	if updatedDocument == nil {
-		return updatedDocument, errors.New("Data not present in db given by Id or it is deactivated")
+		return updatedDocument, errors.New("data not present in db given by Id or it is deactivated")
 	}
 
 	return updatedDocument, nil
@@ -154,31 +169,33 @@ func convertDbResultIntoUserStruct(fetchDataCursor *mongo.Cursor) ([]*model.User
 	return finaldata, nil
 }
 
-func convertDate(dateStr string) (time.Time, error) {
-
-	date, err := time.Parse("2006-01-02", dateStr)
-	if err != nil {
-		log.Println(err)
-		return date, err
-	}
-	return date, nil
-}
-
-func (e *Connection) SaveDonorData(donorData model.Donor) (string, error) {
-
+func (e *Connection) SaveDonorData(donorData model.Donor) (model.Donor, error) {
+	// file := "donorData" + fmt.Sprintf("%v", time.Now().Format("3_4_5_pm"))
+	donorData.DonationTime = time.Now()
 	data, err := CollectionDonor.InsertOne(ctx, donorData)
 	if err != nil {
 		log.Println(err)
-		return "", errors.New("Unable to store data")
+		return donorData, errors.New("unable to store data")
 	}
 	fmt.Println(data)
 	str, err := updateAvailableBlood(donorData)
 	if err != nil {
 		log.Println(err)
-		return "", err
+		return donorData, err
 	}
+
 	fmt.Println(str)
-	return "Donor Details Saved Successfully", nil
+	_, err = CertificatesOfBloodDonated(donorData)
+	if err != nil {
+		log.Println(err)
+		return donorData, err
+	}
+	if oid, ok := data.InsertedID.(primitive.ObjectID); ok {
+
+		donorData.Id = oid
+
+	}
+	return donorData, nil
 }
 
 func (e *Connection) SearchDonorDetailsById(idStr string) ([]*model.Donor, error) {
@@ -235,7 +252,7 @@ func (e *Connection) UpdateDonorDetailsById(reqData model.Donor, idStr string) (
 	}
 
 	if updatedDocument == nil {
-		return updatedDocument, errors.New("Data not present in db given by Id or it is deactivated")
+		return updatedDocument, errors.New("data not present in db given by Id or it is deactivated")
 	}
 
 	return updatedDocument, nil
@@ -285,6 +302,10 @@ func updateAvailableBlood(donorData model.Donor) (string, error) {
 	}
 	data, err := CollectionAvailableBlood.Find(ctx, filter)
 
+	if err != nil {
+		return "", nil
+	}
+
 	finalData, err = convertIntoAvailableBlood(data)
 	if err != nil {
 		return "", nil
@@ -331,16 +352,6 @@ func convertIntoAvailableBlood(fetchDataCursor *mongo.Cursor) ([]*model.Availabl
 	return finaldata, nil
 }
 
-func convertUnitsStringIntoInt(units string) (int, error) {
-	unitReplace := strings.ReplaceAll(units, "ml", "")
-	unitInt, err := strconv.Atoi(unitReplace)
-	if err != nil {
-		fmt.Println(err)
-		return 0, nil
-	}
-	return unitInt, nil
-}
-
 func deductOrAddBloodUnitsFromBloodDetails(units int, location, methodCall string) (string, error) {
 
 	filter := bson.D{
@@ -352,18 +363,23 @@ func deductOrAddBloodUnitsFromBloodDetails(units int, location, methodCall strin
 	}
 	fmt.Println(filter)
 	data, err := CollectionAvailableBlood.Find(ctx, filter)
+
+	if err != nil {
+		return "", nil
+	}
+
 	finalData, err := convertIntoAvailableBlood(data)
 	fmt.Println(finalData)
 	if err != nil {
 		return "", nil
 	}
 	if finalData == nil {
-		return "", errors.New("Data not present in Blood details according to given location and desposited date")
+		return "", errors.New("data not present in Blood details according to given location and desposited date")
 	}
 	if methodCall == "Deduct" {
 		unit := finalData[0].Units
 		if !(unit >= units) {
-			return "", errors.New("Insufficient Blood!")
+			return "", errors.New("insufficient blood")
 		}
 		addUnit := unit - units
 		fmt.Println("Total Units:", addUnit)
@@ -379,21 +395,29 @@ func deductOrAddBloodUnitsFromBloodDetails(units int, location, methodCall strin
 	return "", nil
 }
 
-func (e *Connection) ApplyBloodPatientDetails(reqBody model.Patient) (string, error) {
+func (e *Connection) ApplyBloodPatientDetails(reqBody model.Patient) (model.Patient, error) {
 
 	deduct, err := deductOrAddBloodUnitsFromBloodDetails(reqBody.RequestedUnits, reqBody.Location, "Deduct")
-	if err != nil {
-		return "", err
+	if err == nil {
+		reqBody.IsBloodProvided = true
+		// return reqBody, err
 	}
 	fmt.Println(deduct)
-	reqBody.IsBloodProvided = true
+
+	reqBody.RequestedTime = time.Now()
 	data, err := CollectionPatient.InsertOne(ctx, reqBody)
 	if err != nil {
 		log.Println(err)
-		return "", errors.New("Unable to store data")
+		return reqBody, errors.New("unable to store data")
 	}
+	CertificatesOfBloodRecieved(reqBody)
 	fmt.Println(data)
-	return "Patient Saved Successfully", nil
+	if oid, ok := data.InsertedID.(primitive.ObjectID); ok {
+
+		reqBody.Id = oid
+
+	}
+	return reqBody, nil
 }
 
 func (e *Connection) GivenBloodPatientDetailsById(idStr string) (bson.M, error) {
@@ -415,7 +439,7 @@ func (e *Connection) GivenBloodPatientDetailsById(idStr string) (bson.M, error) 
 	}
 	fmt.Println(updatedDocument)
 	if updatedDocument == nil {
-		return updatedDocument, errors.New("Data not present in db given by Id or it is deactivated")
+		return updatedDocument, errors.New("data not present in db given by Id or it is deactivated")
 	}
 
 	return updatedDocument, nil
@@ -443,4 +467,226 @@ func (e *Connection) SearchFilterBloodDetails(search model.AvailableBlood) ([]*m
 	}
 
 	return data, nil
+}
+
+func CertificatesOfBloodDonated(donorDetails model.Donor) (string, error) {
+	file := "BloodDonatationCertificate" + donorDetails.Name + fmt.Sprintf("%v", time.Now().Format("2006-01-02_3_4_5_pm"))
+	c := creator.New()
+	c.SetPageMargins(20, 20, 20, 20)
+
+	font, err := pdfModel.NewStandard14Font(pdfModel.HelveticaName)
+	if err != nil {
+		return "", err
+	}
+
+	fontBold, err := pdfModel.NewStandard14Font(pdfModel.HelveticaBoldName)
+	if err != nil {
+		return "", err
+	}
+	contentAlignH(c, font, fontBold, donorDetails)
+	// Generate basic usage chapter.
+	// if err := basicUsage(c, font, fontBold, donorDetails); err != nil {
+	// 	return "", err
+	// }
+	err = os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		return "", err
+	}
+	err = c.WriteToFile(dir + file + ".pdf")
+	if err != nil {
+		return "", err
+	}
+	return "Certificate Download Successfully : " + dir + file + ".pdf", nil
+}
+
+func contentAlignH(c *creator.Creator, font, fontBold *pdfModel.PdfFont, donorDetails model.Donor) {
+
+	fontColor := creator.ColorRGBFrom8bit(0, 0, 0)
+	normalFontSize := 10.0
+	h := c.NewParagraph("Blood Donatation Certificate")
+	h.SetFont(font)
+	h.SetFontSize(normalFontSize)
+	h.SetColor(creator.ColorBlack)
+	h.SetMargins(200, 0, 10, 10)
+	c.Draw(h)
+	d := c.NewParagraph("Donation Date : " + donorDetails.DonationTime.Format("2006-01-02 3-4-5 pm"))
+	d.SetFont(font)
+	d.SetFontSize(normalFontSize)
+	d.SetColor(fontColor)
+	d.SetMargins(0, 0, 10, 0)
+	c.Draw(d)
+	// ch.Add(d)
+	x := c.NewParagraph("YOU ARE AWESOME!")
+	x.SetFont(fontBold)
+	x.SetFontSize(14)
+	x.SetColor(creator.ColorBlack)
+	x.SetMargins(200, 0, 10, 10)
+	c.Draw(x)
+	// ch.Add(x)
+	z := c.NewParagraph("We are pleased to appriciate the nobel gesture of Mr./Mrs. " + donorDetails.Name + " for his/her voluntary contribution in blood donation.")
+	z.SetFont(c.NewTextStyle().Font)
+	z.SetFontSize(normalFontSize)
+	z.SetColor(creator.ColorBlack)
+	z.SetMargins(0, 0, 10, 0)
+	c.Draw(z)
+	// ch.Add(z)
+	y := c.NewParagraph("Age : " + fmt.Sprintf("%v", donorDetails.Age))
+	y.SetFont(font)
+	y.SetFontSize(normalFontSize)
+	y.SetColor(creator.ColorBlack)
+	y.SetMargins(0, 0, 10, 0)
+	c.Draw(y)
+	// ch.Add(y)
+	b := c.NewParagraph("Blood Group : " + donorDetails.BloodGroup)
+	b.SetFont(font)
+	b.SetFontSize(normalFontSize)
+	b.SetColor(creator.ColorBlack)
+	b.SetMargins(0, 0, 10, 0)
+	c.Draw(b)
+	// ch.Add(b)
+	a := c.NewParagraph("Units : " + fmt.Sprintf("%v", donorDetails.Units))
+	a.SetFont(font)
+	a.SetFontSize(normalFontSize)
+	a.SetColor(creator.ColorBlack)
+	a.SetMargins(0, 0, 10, 0)
+	c.Draw(a)
+	// ch.Add(a)
+
+	e := c.NewParagraph("Location : " + donorDetails.Location)
+	e.SetFont(font)
+	e.SetFontSize(normalFontSize)
+	e.SetColor(creator.ColorBlack)
+	e.SetMargins(0, 0, 10, 0)
+	c.Draw(e)
+	// ch.Add(e)
+	f := c.NewParagraph("AdharCard : " + donorDetails.Adharcard)
+	f.SetFont(font)
+	f.SetFontSize(normalFontSize)
+	f.SetColor(creator.ColorBlack)
+	f.SetMargins(0, 0, 10, 0)
+	c.Draw(f)
+	// ch.Add(f)
+	m := c.NewParagraph("Authorized Signature : " + "____________")
+	m.SetFont(font)
+	m.SetFontSize(normalFontSize)
+	m.SetColor(creator.ColorBlack)
+	m.SetMargins(400, 0, 20, 0)
+	c.Draw(m)
+	// ch.Add(m)
+
+}
+
+func CertificatesOfBloodRecieved(patientDetails model.Patient) (string, error) {
+	file := "BloodRecievedCertificate" + patientDetails.Name + fmt.Sprintf("%v", time.Now().Format("2006-01-02_3_4_5_pm"))
+	c := creator.New()
+	c.SetPageMargins(20, 20, 20, 20)
+
+	font, err := pdfModel.NewStandard14Font(pdfModel.HelveticaName)
+	if err != nil {
+		return "", err
+	}
+
+	fontBold, err := pdfModel.NewStandard14Font(pdfModel.HelveticaBoldName)
+	if err != nil {
+		return "", err
+	}
+
+	// Generate basic usage chapter.
+	// ch := c.NewChapter("Blood Recived Reciept")
+	// ch.SetMargins(0, 0, 10, 0)
+	// ch.GetHeading().SetFont(font)
+	// ch.GetHeading().SetFontSize(20)
+	// ch.GetHeading().SetColor(creator.ColorRGBFrom8bit(72, 86, 95))
+
+	contentAlignHBloodRecieved(c, font, fontBold, patientDetails)
+
+	// Draw chapter.
+	// if err := c.Draw(ch); err != nil {
+	// 	return "", err
+	// }
+
+	err = os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		return "", err
+	}
+	err = c.WriteToFile(dir + file + ".pdf")
+	if err != nil {
+		return "", err
+	}
+	return "Reciept Download Successfully : " + dir + file + ".pdf", nil
+}
+
+func contentAlignHBloodRecieved(c *creator.Creator, font, fontBold *pdfModel.PdfFont, patientDetails model.Patient) {
+	normalFontSize := 10.0
+	// normalFontColorGreen := creator.ColorRGBFrom8bit(4, 79, 3)
+	h := c.NewParagraph("Blood Recived Reciept")
+	h.SetFont(font)
+	h.SetFontSize(normalFontSize)
+	h.SetColor(creator.ColorBlack)
+	h.SetMargins(200, 0, 10, 10)
+	c.Draw(h)
+
+	d := c.NewParagraph("Recieved Date : " + patientDetails.RequestedTime.Format("2006-01-02 3-4-5 pm"))
+	d.SetFont(font)
+	d.SetFontSize(normalFontSize)
+	d.SetColor(creator.ColorBlack)
+	d.SetMargins(0, 0, 10, 0)
+	c.Draw(d)
+	// ch.Add(d)
+
+	x := c.NewParagraph("Name : " + patientDetails.Name)
+	x.SetFont(font)
+	x.SetFontSize(normalFontSize)
+	x.SetColor(creator.ColorBlack)
+	x.SetMargins(0, 0, 10, 0)
+	c.Draw(x)
+	// ch.Add(x)
+
+	y := c.NewParagraph("Age : " + fmt.Sprintf("%v", patientDetails.Age))
+	y.SetFont(font)
+	y.SetFontSize(normalFontSize)
+	y.SetColor(creator.ColorBlack)
+	y.SetMargins(0, 0, 10, 0)
+	c.Draw(y)
+	// ch.Add(y)
+	b := c.NewParagraph("Blood Group : " + patientDetails.BloodGroup)
+	b.SetFont(font)
+	b.SetFontSize(normalFontSize)
+	b.SetColor(creator.ColorBlack)
+	b.SetMargins(0, 0, 10, 0)
+	c.Draw(b)
+	// ch.Add(b)
+
+	e := c.NewParagraph("Location : " + patientDetails.Location)
+	e.SetFont(font)
+	e.SetFontSize(normalFontSize)
+	e.SetColor(creator.ColorBlack)
+	e.SetMargins(0, 0, 10, 0)
+	c.Draw(e)
+	// ch.Add(e)
+
+	f := c.NewParagraph("Adharcard : " + patientDetails.Adharcard)
+	f.SetFont(font)
+	f.SetFontSize(normalFontSize)
+	f.SetColor(creator.ColorBlack)
+	f.SetMargins(0, 0, 10, 0)
+	c.Draw(f)
+
+	// ch.Add(f)
+	g := c.NewParagraph("Reciver's Signature : " + "____________")
+	g.SetFont(font)
+	g.SetFontSize(normalFontSize)
+	g.SetColor(creator.ColorBlack)
+	g.SetMargins(0, 0, 10, 0)
+	c.Draw(g)
+	// ch.Add(g)
+
+	m := c.NewParagraph("Authorized Signature : " + "____________")
+	m.SetFont(font)
+	m.SetFontSize(normalFontSize)
+	m.SetColor(creator.ColorBlack)
+	m.SetMargins(400, 0, 20, 0)
+	c.Draw(m)
+	// ch.Add(m)
+
 }
