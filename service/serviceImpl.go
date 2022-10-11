@@ -484,10 +484,7 @@ func CertificatesOfBloodDonated(donorDetails model.Donor) (string, error) {
 		return "", err
 	}
 	contentAlignH(c, font, fontBold, donorDetails)
-	// Generate basic usage chapter.
-	// if err := basicUsage(c, font, fontBold, donorDetails); err != nil {
-	// 	return "", err
-	// }
+
 	err = os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
 		return "", err
@@ -515,42 +512,36 @@ func contentAlignH(c *creator.Creator, font, fontBold *pdfModel.PdfFont, donorDe
 	d.SetColor(fontColor)
 	d.SetMargins(0, 0, 10, 0)
 	c.Draw(d)
-	// ch.Add(d)
 	x := c.NewParagraph("YOU ARE AWESOME!")
 	x.SetFont(fontBold)
 	x.SetFontSize(14)
 	x.SetColor(creator.ColorBlack)
 	x.SetMargins(200, 0, 10, 10)
 	c.Draw(x)
-	// ch.Add(x)
 	z := c.NewParagraph("We are pleased to appriciate the nobel gesture of Mr./Mrs. " + donorDetails.Name + " for his/her voluntary contribution in blood donation.")
 	z.SetFont(c.NewTextStyle().Font)
 	z.SetFontSize(normalFontSize)
 	z.SetColor(creator.ColorBlack)
 	z.SetMargins(0, 0, 10, 0)
 	c.Draw(z)
-	// ch.Add(z)
 	y := c.NewParagraph("Age : " + fmt.Sprintf("%v", donorDetails.Age))
 	y.SetFont(font)
 	y.SetFontSize(normalFontSize)
 	y.SetColor(creator.ColorBlack)
 	y.SetMargins(0, 0, 10, 0)
 	c.Draw(y)
-	// ch.Add(y)
 	b := c.NewParagraph("Blood Group : " + donorDetails.BloodGroup)
 	b.SetFont(font)
 	b.SetFontSize(normalFontSize)
 	b.SetColor(creator.ColorBlack)
 	b.SetMargins(0, 0, 10, 0)
 	c.Draw(b)
-	// ch.Add(b)
 	a := c.NewParagraph("Units : " + fmt.Sprintf("%v", donorDetails.Units))
 	a.SetFont(font)
 	a.SetFontSize(normalFontSize)
 	a.SetColor(creator.ColorBlack)
 	a.SetMargins(0, 0, 10, 0)
 	c.Draw(a)
-	// ch.Add(a)
 
 	e := c.NewParagraph("Location : " + donorDetails.Location)
 	e.SetFont(font)
@@ -558,22 +549,18 @@ func contentAlignH(c *creator.Creator, font, fontBold *pdfModel.PdfFont, donorDe
 	e.SetColor(creator.ColorBlack)
 	e.SetMargins(0, 0, 10, 0)
 	c.Draw(e)
-	// ch.Add(e)
 	f := c.NewParagraph("AdharCard : " + donorDetails.Adharcard)
 	f.SetFont(font)
 	f.SetFontSize(normalFontSize)
 	f.SetColor(creator.ColorBlack)
 	f.SetMargins(0, 0, 10, 0)
 	c.Draw(f)
-	// ch.Add(f)
 	m := c.NewParagraph("Authorized Signature : " + "____________")
 	m.SetFont(font)
 	m.SetFontSize(normalFontSize)
 	m.SetColor(creator.ColorBlack)
 	m.SetMargins(400, 0, 20, 0)
 	c.Draw(m)
-	// ch.Add(m)
-
 }
 
 func CertificatesOfBloodRecieved(patientDetails model.Patient) (string, error) {
@@ -591,19 +578,7 @@ func CertificatesOfBloodRecieved(patientDetails model.Patient) (string, error) {
 		return "", err
 	}
 
-	// Generate basic usage chapter.
-	// ch := c.NewChapter("Blood Recived Reciept")
-	// ch.SetMargins(0, 0, 10, 0)
-	// ch.GetHeading().SetFont(font)
-	// ch.GetHeading().SetFontSize(20)
-	// ch.GetHeading().SetColor(creator.ColorRGBFrom8bit(72, 86, 95))
-
 	contentAlignHBloodRecieved(c, font, fontBold, patientDetails)
-
-	// Draw chapter.
-	// if err := c.Draw(ch); err != nil {
-	// 	return "", err
-	// }
 
 	err = os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
@@ -618,7 +593,6 @@ func CertificatesOfBloodRecieved(patientDetails model.Patient) (string, error) {
 
 func contentAlignHBloodRecieved(c *creator.Creator, font, fontBold *pdfModel.PdfFont, patientDetails model.Patient) {
 	normalFontSize := 10.0
-	// normalFontColorGreen := creator.ColorRGBFrom8bit(4, 79, 3)
 	h := c.NewParagraph("Blood Recived Reciept")
 	h.SetFont(font)
 	h.SetFontSize(normalFontSize)
@@ -632,7 +606,6 @@ func contentAlignHBloodRecieved(c *creator.Creator, font, fontBold *pdfModel.Pdf
 	d.SetColor(creator.ColorBlack)
 	d.SetMargins(0, 0, 10, 0)
 	c.Draw(d)
-	// ch.Add(d)
 
 	x := c.NewParagraph("Name : " + patientDetails.Name)
 	x.SetFont(font)
@@ -648,14 +621,13 @@ func contentAlignHBloodRecieved(c *creator.Creator, font, fontBold *pdfModel.Pdf
 	y.SetColor(creator.ColorBlack)
 	y.SetMargins(0, 0, 10, 0)
 	c.Draw(y)
-	// ch.Add(y)
+
 	b := c.NewParagraph("Blood Group : " + patientDetails.BloodGroup)
 	b.SetFont(font)
 	b.SetFontSize(normalFontSize)
 	b.SetColor(creator.ColorBlack)
 	b.SetMargins(0, 0, 10, 0)
 	c.Draw(b)
-	// ch.Add(b)
 
 	e := c.NewParagraph("Location : " + patientDetails.Location)
 	e.SetFont(font)
@@ -663,7 +635,6 @@ func contentAlignHBloodRecieved(c *creator.Creator, font, fontBold *pdfModel.Pdf
 	e.SetColor(creator.ColorBlack)
 	e.SetMargins(0, 0, 10, 0)
 	c.Draw(e)
-	// ch.Add(e)
 
 	f := c.NewParagraph("Adharcard : " + patientDetails.Adharcard)
 	f.SetFont(font)
@@ -672,14 +643,12 @@ func contentAlignHBloodRecieved(c *creator.Creator, font, fontBold *pdfModel.Pdf
 	f.SetMargins(0, 0, 10, 0)
 	c.Draw(f)
 
-	// ch.Add(f)
 	g := c.NewParagraph("Reciver's Signature : " + "____________")
 	g.SetFont(font)
 	g.SetFontSize(normalFontSize)
 	g.SetColor(creator.ColorBlack)
 	g.SetMargins(0, 0, 10, 0)
 	c.Draw(g)
-	// ch.Add(g)
 
 	m := c.NewParagraph("Authorized Signature : " + "____________")
 	m.SetFont(font)
@@ -687,6 +656,4 @@ func contentAlignHBloodRecieved(c *creator.Creator, font, fontBold *pdfModel.Pdf
 	m.SetColor(creator.ColorBlack)
 	m.SetMargins(400, 0, 20, 0)
 	c.Draw(m)
-	// ch.Add(m)
-
 }
